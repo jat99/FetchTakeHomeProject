@@ -9,28 +9,88 @@ import XCTest
 @testable import FetchTakeHomeProject
 
 final class FetchTakeHomeProjectTests: XCTestCase {
-
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+    
+    let networkManager = NetworkManager.shared
+    let cacheManager = CacheManager.shared
+    
+    // MARK: Network Tests
+    
+    func testMalformedData() async throws {
+        let endpoint = "https://d3jbb8n5wk0qxi.cloudfront.net/recipes-malformed.json"
+        do {
+            _  = try await networkManager.fetchRecipes(at: endpoint)
+            XCTFail()
+        } catch {
+            XCTAssertEqual(error as? CustomError, CustomError.malformedData)
+        }
     }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    
+    func testEmptyData() async throws {
+        let endpoint = "https://d3jbb8n5wk0qxi.cloudfront.net/recipes-empty.json"
+        do {
+            let recipes = try await networkManager.fetchRecipes(at: endpoint)
+            XCTAssertTrue(recipes.recipes.count == 0)
+        } catch {
+            XCTFail()
+        }
     }
-
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
+    
+    func testSuccessfulData() async throws {
+        let endpoint = "https://d3jbb8n5wk0qxi.cloudfront.net/recipes.json"
+        do {
+            let recipes = try await networkManager.fetchRecipes(at: endpoint)
+            XCTAssertTrue(type(of:recipes.recipes[0]) == Recipe.self)
+            XCTAssertTrue(recipes.recipes.count > 0)
+        } catch {
+            XCTFail()
+        }
     }
-
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
+    
+    func testInvalidURL() async throws {
+        let endPoint = ""
+        do {
+            _ = try await networkManager.fetchRecipes(at: endPoint)
+            XCTFail()
+        } catch {
+            let urlError = error as? URLError
+            XCTAssertEqual(urlError?.code, URLError.badURL)
+        }
+    }
+    
+    func testSuccessImageDownload() async throws {
+        let urlString = "https://d3jbb8n5wk0qxi.cloudfront.net/photos/b9ab0071-b281-4bee-b361-ec340d405320/large.jpg"
+        do {
+            let image = try await networkManager.fetchImage(at: urlString)
+            XCTAssertTrue(type(of: image) == UIImage.self)
+        } catch {
+            XCTFail()
+        }
+    }
+    
+    func testFailedImageDownload() async throws {
+        let urlString = ""
+        do {
+            _ = try await networkManager.fetchImage(at: urlString)
+            XCTFail()
+        } catch {
+            XCTAssertTrue(true)
         }
     }
 
+    
+    // MARK: Cache Tests
+    
+    func testSuccessfulCache() {
+        let key = UUID().uuidString
+        let image = UIImage(systemName: "ellipsis")
+        cacheManager.addImage(image!, forKey: key)
+        let cachedImage = cacheManager.getImage(forKey: key)
+        XCTAssertEqual(image, cachedImage)
+    }
+    
+    func testImageNotInCache() {
+        let image = cacheManager.getImage(forKey: "key")
+        XCTAssertNil(image)
+    }
 }
+
